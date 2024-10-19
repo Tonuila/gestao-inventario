@@ -63,15 +63,34 @@ const searchFornecedores = (callback) => {
 };
 
 // Função para buscar todos os produtos.
-const searchProdutos = (callback) => {
-  const query = `
+const searchProdutos = (filters, callback) => {
+  let query = `
     SELECT Produtos.*, Fornecedores.Nome AS fornecedorNome 
     FROM Produtos
     LEFT JOIN Fornecedores ON Produtos.fornecedorId = Fornecedores.FornecedorID
+    WHERE 1 = 1
   `;
-  db.all(query, (err, rows) => {
+  const queryParams = [];
+
+  // Filtrar por nome
+  if (filters.nome) {
+    query += " AND Produtos.nome LIKE ?";
+    queryParams.push(`%${filters.nome}%`);
+  }
+
+  // Filtrar por fornecedor
+  if (filters.fornecedorId) {
+    query += " AND Produtos.fornecedorId = ?";
+    queryParams.push(filters.fornecedorId);
+  }
+
+  // Ordenar por preço
+  if (filters.ordemPreco) {
+    query += ` ORDER BY Produtos.preco ${filters.ordemPreco === 'asc' ? 'ASC' : 'DESC'}`;
+  }
+
+  db.all(query, queryParams, (err, rows) => {
     if (err) {
-      console.error(err);
       callback(err, null);
     } else {
       callback(null, rows);
@@ -98,8 +117,15 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "GET") {
     if (pathname === "/produtos") {
-      // Retorna todos os produtos.
-      searchProdutos((err, result) => {
+      const { nome, fornecedorId, ordemPreco } = parsedUrl.query;
+    
+      const filters = {
+        nome,
+        fornecedorId,
+        ordemPreco,
+      };
+    
+      searchProdutos(filters, (err, result) => {
         if (err) {
           res.writeHead(500, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: err.message }));
@@ -107,8 +133,8 @@ const server = http.createServer((req, res) => {
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify(result));
         }
-      });
-    } else if (pathname === "/fornecedores") {
+        });
+      } else if (pathname === "/fornecedores") {
       // Retorna todos os fornecedores.
       searchFornecedores((err, result) => {
         if (err) {

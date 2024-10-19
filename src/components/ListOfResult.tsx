@@ -9,8 +9,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Interface atualizada para o produto e fornecedor
 interface Produto {
   id: number;
   nome: string;
@@ -27,49 +28,52 @@ interface Fornecedor {
 }
 
 function ListOfResult() {
-  const [result, setResult] = useState<Produto[]>([]); // Inicializar como array vazio
-  const [fornecedores, setFornecedores] = useState<Record<number, string>>({}); // Estado para armazenar os fornecedores como um dicionário
-  const [loading, setLoading] = useState(true); // Estado para loading
-  const [error, setError] = useState<string | null>(null); // Estado para gerenciar erros
+  const [result, setResult] = useState<Produto[]>([]);
+  const [fornecedores, setFornecedores] = useState<Record<number, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [filtroNome, setFiltroNome] = useState<string>("");
+  const [filtroFornecedor, setFiltroFornecedor] = useState<string>("");
+  const [ordemPreco, setOrdemPreco] = useState<string>("");
+
+  // Fetch produtos com filtro
+  const fetchProdutos = () => {
+    let query = `http://localhost:3000/produtos?`;
+
+    if (filtroNome) {
+      query += `nome=${encodeURIComponent(filtroNome)}&`;
+    }
+    if (filtroFornecedor) {
+      query += `fornecedorId=${encodeURIComponent(filtroFornecedor)}&`;
+    }
+    if (ordemPreco) {
+      query += `ordemPreco=${encodeURIComponent(ordemPreco)}&`;
+    }
+
+    fetch(query)
+      .then((res) => res.json())
+      .then((data: Produto[]) => setResult(data))
+      .catch((err) => setError(`Erro ao carregar produtos: ${err.message}`));
+  };
 
   useEffect(() => {
-    // Faz o fetch para buscar os produtos
-    fetch("http://localhost:3000/produtos")
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Erro na requisição: ${res.statusText}`);
-        }
-        return res.json();
-      })
-      .then((data: Produto[]) => {
-        setResult(data);
-      })
-      .catch((err) => {
-        setError(`Erro ao carregar produtos: ${err.message}`);
-      });
-  }, []);
+    fetchProdutos();
+  }, [filtroNome, filtroFornecedor, ordemPreco]);
 
   useEffect(() => {
-    // Faz o fetch para buscar os fornecedores
+    // Fetch fornecedores
     fetch("http://localhost:3000/fornecedores")
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`Erro na requisição: ${res.statusText}`);
-        }
-        return res.json();
-      })
+      .then((res) => res.json())
       .then((data: Fornecedor[]) => {
         const fornecedorMap = data.reduce((map, fornecedor) => {
           map[fornecedor.FornecedorID] = fornecedor.Nome;
           return map;
         }, {} as Record<number, string>);
         setFornecedores(fornecedorMap);
-        setLoading(false); // Desativa o loading
-      })
-      .catch((err) => {
-        setError(`Erro ao carregar fornecedores: ${err.message}`);
         setLoading(false);
-      });
+      })
+      .catch((err) => setError(`Erro ao carregar fornecedores: ${err.message}`));
   }, []);
 
   const handleDelete = (id: number) => {
@@ -78,29 +82,48 @@ function ListOfResult() {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       })
-        .then((res) => {
-          if (!res.ok) {
-            throw new Error(`Erro ao excluir o produto: ${res.statusText}`);
-          }
-          setResult(result.filter((item) => item.id !== id)); // Remove o item excluído da lista
+        .then(() => {
+          setResult(result.filter((item) => item.id !== id));
         })
-        .catch((err) => {
-          console.error("Erro ao excluir produto:", err);
-        });
+        .catch((err) => console.error("Erro ao excluir produto:", err));
     }
   };
 
-  if (loading) {
-    return <p>Carregando produtos...</p>;
-  }
-
-  if (error) {
-    return <p>{error}</p>;
-  }
+  if (loading) return <p>Carregando produtos...</p>;
+  if (error) return <p>{error}</p>;
 
   return (
     <div className="p-4 overflow-x-auto">
-      {Array.isArray(result) && result.length > 0 ? (
+      <div className="flex space-x-4 mb-4">
+        <Input
+          placeholder="Filtrar por nome"
+          value={filtroNome}
+          onChange={(e) => setFiltroNome(e.target.value)}
+        />
+        <Select onValueChange={setFiltroFornecedor} value={filtroFornecedor}>
+          <SelectTrigger>
+            <SelectValue placeholder="Filtrar por fornecedor" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(fornecedores).map(([id, nome]) => (
+              <SelectItem key={id} value={id}>
+                {nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select onValueChange={setOrdemPreco} value={ordemPreco}>
+          <SelectTrigger>
+            <SelectValue placeholder="Ordenar por preço" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">Preço Crescente</SelectItem>
+            <SelectItem value="desc">Preço Decrescente</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {result.length > 0 ? (
         <Table className="w-full">
           <TableHeader>
             <TableRow>
@@ -119,7 +142,7 @@ function ListOfResult() {
                 <TableCell>{item.descricao}</TableCell>
                 <TableCell>{item.preco}</TableCell>
                 <TableCell>{item.quantidade}</TableCell>
-                <TableCell>{fornecedores[item.fornecedorId] || "Fornecedor não encontrado"}</TableCell>
+                <TableCell>{fornecedores[item.fornecedorId]}</TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
                     <Link to={`/modify/${item.id}`}>
@@ -127,11 +150,7 @@ function ListOfResult() {
                         Modificar
                       </Button>
                     </Link>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(item.id)}
-                    >
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(item.id)}>
                       Excluir
                     </Button>
                   </div>
