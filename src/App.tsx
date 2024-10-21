@@ -9,6 +9,7 @@ import Clientes from './pages/clientes/Clientes';
 import TransacoesFinanceiras from './pages/transacoes_financeiras/TransacoesFinanceiras';
 import FormData from './components/FormData';
 import FormFornecedor from './components/FormFornecedor';
+import Sobre from './pages/sobre/Sobre';
 import './App.css';
 
 function App() {
@@ -25,6 +26,9 @@ function App() {
               <ul>
                 <li>
                   <Link to="/" onClick={() => setMenuOpen(false)}>Home</Link>
+                </li>
+                <li>
+                  <Link to="/sobre" onClick={() => setMenuOpen(false)}>Sobre</Link>
                 </li>
                 <li>
                   <Link to="/produtos" onClick={() => setMenuOpen(false)}>Produtos</Link>
@@ -57,6 +61,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/produtos" element={<Produtos />} />
+          <Route path="/sobre" element={<Sobre />} />
           <Route path="/fornecedores" element={<Fornecedores />} />
           <Route path="/fornecedor/new" element={<FormFornecedor />} />
           <Route path="/fornecedor/edit/:FornecedorID" element={<FormFornecedor />} />
