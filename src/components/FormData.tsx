@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Importando o Select do shadcn/ui
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Fornecedor {
   FornecedorID: number;
@@ -16,7 +16,7 @@ interface DataToInsert {
   descricao: string;
   preco: string;
   quantidade: string;
-  imagem: string;
+  imagem: File | null;
   fornecedorId: string;
 }
 
@@ -36,9 +36,8 @@ function FormData() {
     descricao: "",
     preco: "",
     quantidade: "",
-    imagem: "",
-    fornecedorId: "",
-  });
+    imagem: null,
+    fornecedorId: "",  });
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const navigate = useNavigate();
   const { ProductID } = useParams<{ ProductID: string }>();
@@ -63,7 +62,7 @@ function FormData() {
             descricao: foundItem.descricao,
             preco: foundItem.preco.toString(),
             quantidade: foundItem.quantidade.toString(),
-            imagem: foundItem.imagem,
+            imagem: null,
             fornecedorId: foundItem.fornecedorId.toString(),
           });
         })
@@ -71,10 +70,20 @@ function FormData() {
     }
   }, [ProductID]);
 
+  // No handleSubmit, o código permanece o mesmo
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const formData = new window.FormData();
   
-    console.log("Dados a serem enviados:", dataToInsert);
+    formData.append("nome", dataToInsert.nome);
+    formData.append("descricao", dataToInsert.descricao);
+    formData.append("preco", dataToInsert.preco);
+    formData.append("quantidade", dataToInsert.quantidade);
+    formData.append("fornecedorId", dataToInsert.fornecedorId);
+  
+    if (dataToInsert.imagem) {
+      formData.append("imagem", dataToInsert.imagem);
+    }
   
     const method = ProductID ? "PUT" : "POST";
     const url = ProductID
@@ -83,8 +92,7 @@ function FormData() {
   
     fetch(url, {
       method: method,
-      body: JSON.stringify(dataToInsert),
-      headers: { "Content-Type": "application/json" },
+      body: formData,
     })
       .then((res) => {
         if (!res.ok) throw new Error(`Erro ao salvar: ${res.statusText}`);
@@ -93,7 +101,15 @@ function FormData() {
       .then(() => navigate("/produtos"))
       .catch((err) => console.error("Erro ao salvar produto:", err));
   };
-  
+
+  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setDataToInsert({
+        ...dataToInsert,
+        imagem: e.target.files[0],
+      });
+    }
+  };
 
   const handleSelectChange = (value: string) => {
     setDataToInsert({
@@ -157,13 +173,13 @@ function FormData() {
           />
         </div>
         <div>
-          <Label htmlFor="imagem">URL da Imagem</Label>
+          <Label htmlFor="imagem">Imagem do Produto</Label>
           <Input
-            type="text"
-            value={dataToInsert.imagem}
+            type="file"
             name="imagem"
-            onChange={handleChange}
-            placeholder="URL da Imagem"
+            accept="image/*"
+            onChange={handleImageChange}
+            required={!ProductID}
           />
         </div>
         <div>

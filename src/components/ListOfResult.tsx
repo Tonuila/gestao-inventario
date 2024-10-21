@@ -10,7 +10,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Produto {
   id: number;
@@ -20,6 +26,7 @@ interface Produto {
   quantidade: number;
   imagem: string;
   fornecedorId: number;
+  fornecedorNome?: string;
 }
 
 interface Fornecedor {
@@ -127,6 +134,7 @@ function ListOfResult() {
         <Table className="w-full">
           <TableHeader>
             <TableRow>
+              <TableHead>Imagem</TableHead>
               <TableHead>Nome do Produto</TableHead>
               <TableHead>Descrição</TableHead>
               <TableHead>Preço</TableHead>
@@ -138,6 +146,15 @@ function ListOfResult() {
           <TableBody>
             {result.map((item) => (
               <TableRow key={item.id}>
+                <TableCell>
+                  {item.imagem && (
+                    <img
+                      src={`http://localhost:3000${item.imagem}`}
+                      alt={item.nome}
+                      className="w-24 h-24 object-cover rounded-md"
+                    />
+                  )}
+                </TableCell>
                 <TableCell>{item.nome}</TableCell>
                 <TableCell>{item.descricao}</TableCell>
                 <TableCell>{item.preco}</TableCell>
@@ -150,7 +167,11 @@ function ListOfResult() {
                         Modificar
                       </Button>
                     </Link>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(item.id)}>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(item.id)}
+                    >
                       Excluir
                     </Button>
                   </div>

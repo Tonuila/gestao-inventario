@@ -1,17 +1,33 @@
-const http = require("http");
-const sqlite3 = require("sqlite3").verbose();
-const url = require("url");
+const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const cors = require('cors');
 
-// Cria uma conexão com o banco de dados empresa.db. Se não existir, ele será criado.
-const db = new sqlite3.Database("empresa.db", (err) => {
+// Configuração do servidor Express
+const app = express();
+const port = 3000;
+
+// Middleware para parsear JSON
+app.use(express.json());
+
+// Middleware para permitir CORS
+app.use(cors());
+
+// Servir arquivos estáticos da pasta 'uploads'
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Configuração do banco de dados SQLite
+const db = new sqlite3.Database('empresa.db', (err) => {
   if (err) {
-    console.error(err);
+    console.error('Erro ao conectar ao banco de dados:', err);
   } else {
-    console.log("Conexão estabelecida com sucesso.");
+    console.log('Conexão estabelecida com sucesso.');
   }
 });
 
-// Verifica se a tabela Fornecedores já existe e a recria corretamente.
+// Criação da tabela Fornecedores
 db.run(
   `CREATE TABLE IF NOT EXISTS Fornecedores(
     FornecedorID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,14 +38,14 @@ db.run(
   )`,
   (err) => {
     if (err) {
-      console.error("Erro ao criar a tabela Fornecedores:", err.message);
+      console.error('Erro ao criar a tabela Fornecedores:', err.message);
     } else {
-      console.log("Tabela Fornecedores criada com sucesso.");
+      console.log('Tabela Fornecedores criada com sucesso.');
     }
   }
 );
 
-// Verifica se a tabela Produtos já existe e a recria corretamente com os nomes das colunas atualizados
+// Criação da tabela Produtos
 db.run(
   `CREATE TABLE IF NOT EXISTS Produtos(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,18 +59,35 @@ db.run(
   )`,
   (err) => {
     if (err) {
-      console.error("Erro ao criar a tabela Produtos:", err.message);
+      console.error('Erro ao criar a tabela Produtos:', err.message);
     } else {
-      console.log("Tabela Produtos criada com sucesso.");
+      console.log('Tabela Produtos criada com sucesso.');
     }
   }
 );
 
-// Função para buscar todos os fornecedores.
+// Configuração do armazenamento de imagens com Multer
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const dir = 'uploads/';
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir);
+    }
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    // Gera um nome único para o arquivo
+    cb(null, Date.now() + '-' + file.originalname);
+  },
+});
+
+const upload = multer({ storage: storage });
+
+// Função para buscar todos os fornecedores
 const searchFornecedores = (callback) => {
-  db.all("SELECT * FROM Fornecedores", (err, rows) => {
+  db.all('SELECT * FROM Fornecedores', (err, rows) => {
     if (err) {
-      console.error(err);
+      console.error('Erro ao buscar fornecedores:', err);
       callback(err, null);
     } else {
       callback(null, rows);
@@ -62,7 +95,7 @@ const searchFornecedores = (callback) => {
   });
 };
 
-// Função para buscar todos os produtos.
+// Função para buscar produtos com filtros
 const searchProdutos = (filters, callback) => {
   let query = `
     SELECT Produtos.*, Fornecedores.Nome AS fornecedorNome 
@@ -74,13 +107,13 @@ const searchProdutos = (filters, callback) => {
 
   // Filtrar por nome
   if (filters.nome) {
-    query += " AND Produtos.nome LIKE ?";
+    query += ' AND Produtos.nome LIKE ?';
     queryParams.push(`%${filters.nome}%`);
   }
 
   // Filtrar por fornecedor
   if (filters.fornecedorId) {
-    query += " AND Produtos.fornecedorId = ?";
+    query += ' AND Produtos.fornecedorId = ?';
     queryParams.push(filters.fornecedorId);
   }
 
@@ -98,208 +131,180 @@ const searchProdutos = (filters, callback) => {
   });
 };
 
-// Cria o servidor HTTP.
-const server = http.createServer((req, res) => {
-  const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
+// Rotas para Produtos
+app.get('/produtos', (req, res) => {
+  const { nome, fornecedorId, ordemPreco } = req.query;
 
-  // Configura os cabeçalhos CORS.
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  const filters = {
+    nome,
+    fornecedorId,
+    ordemPreco,
+  };
 
-  // Manipula a requisição OPTIONS (Preflight Request)
-  if (req.method === "OPTIONS") {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
-
-  if (req.method === "GET") {
-    if (pathname === "/produtos") {
-      const { nome, fornecedorId, ordemPreco } = parsedUrl.query;
-    
-      const filters = {
-        nome,
-        fornecedorId,
-        ordemPreco,
-      };
-    
-      searchProdutos(filters, (err, result) => {
-        if (err) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err.message }));
-        } else {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
-        }
-        });
-      } else if (pathname === "/fornecedores") {
-      // Retorna todos os fornecedores.
-      searchFornecedores((err, result) => {
-        if (err) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err.message }));
-        } else {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(result));
-        }
-      });
-    } else if (pathname.startsWith("/produtos/")) {
-      // Retorna um produto específico.
-      const id = pathname.split("/")[2];
-      db.get("SELECT * FROM Produtos WHERE id = ?", [id], (err, row) => {
-        if (err) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err.message }));
-        } else if (!row) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Produto não encontrado." }));
-        } else {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(row));
-        }
-      });
-    } else if (pathname.startsWith("/fornecedores/")) {
-      // Retorna um fornecedor específico.
-      const id = pathname.split("/")[2];
-      db.get("SELECT * FROM Fornecedores WHERE FornecedorID = ?", [id], (err, row) => {
-        if (err) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: err.message }));
-        } else if (!row) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Fornecedor não encontrado." }));
-        } else {
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify(row));
-        }
-      });
+  searchProdutos(filters, (err, result) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
     } else {
-      // Rota não encontrada.
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Rota não encontrada." }));
+      res.status(200).json(result);
     }
-  } else if (req.method === "POST" && pathname === "/produtos") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-    req.on("end", () => {
-      const parsedBody = JSON.parse(body);
-      // Usa a consulta preparada para inserir os dados recebidos do Frontend.
-      db.run(
-        `INSERT INTO Produtos (nome, descricao, preco, quantidade, imagem, fornecedorId)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          parsedBody.nome,
-          parsedBody.descricao,
-          parsedBody.preco,
-          parsedBody.quantidade,
-          parsedBody.imagem,
-          parsedBody.fornecedorId
-        ],
-        function (err) {
-          if (err) {
-            console.error(err);
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: err.message }));
-          } else {
-            console.log("Produto criado com sucesso.");
-            res.writeHead(201, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true, id: this.lastID }));
-          }
-        }
-      );
-    });
-  } else if (req.method === "POST" && pathname === "/fornecedores") {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-    req.on("end", () => {
-      const parsedBody = JSON.parse(body);
-      db.run(
-        `INSERT INTO Fornecedores (Nome, CNPJ, Contato, Endereco) VALUES (?, ?, ?, ?)`,
-        [parsedBody.Nome, parsedBody.CNPJ, parsedBody.Contato, parsedBody.Endereco],
-        function (err) {
-          if (err) {
-            console.error(err);
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: err.message }));
-          } else {
-            console.log("Fornecedor criado com sucesso.");
-            res.writeHead(201, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true, id: this.lastID }));
-          }
-        }
-      );
-    });
-  } else if (req.method === "PUT" && pathname.startsWith("/produtos/")) {
-    const id = pathname.split("/")[2];
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-    req.on("end", () => {
-      const parsedBody = JSON.parse(body);
-      db.run(
-        `UPDATE Produtos
-         SET nome = ?, descricao = ?, preco = ?, quantidade = ?, imagem = ?, fornecedorId = ?
-         WHERE id = ?`,
-        [
-          parsedBody.nome,
-          parsedBody.descricao,
-          parsedBody.preco,
-          parsedBody.quantidade,
-          parsedBody.imagem,
-          parsedBody.fornecedorId,
-          id
-        ],
-        function (err) {
-          if (err) {
-            console.error(err);
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: err.message }));
-          } else {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true }));
-          }
-        }
-      );
-    });
-  } else if (req.method === "PUT" && pathname.startsWith("/fornecedores/")) {
-    const id = pathname.split("/")[2];
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-    });
-    req.on("end", () => {
-      const parsedBody = JSON.parse(body);
-      db.run(
-        `UPDATE Fornecedores
-         SET Nome = ?, CNPJ = ?, Contato = ?, Endereco = ?
-         WHERE FornecedorID = ?`,
-        [parsedBody.Nome, parsedBody.CNPJ, parsedBody.Contato, parsedBody.Endereco, id],
-        function (err) {
-          if (err) {
-            console.error(err);
-            res.writeHead(500, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: err.message }));
-          } else {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ success: true }));
-          }
-        }
-      );
+  });
+});
+
+app.get('/produtos/:id', (req, res) => {
+  const { id } = req.params;
+  db.get('SELECT * FROM Produtos WHERE id = ?', [id], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else if (!row) {
+      res.status(404).json({ error: 'Produto não encontrado.' });
+    } else {
+      res.status(200).json(row);
+    }
+  });
+});
+
+app.post('/produtos', upload.single('imagem'), (req, res) => {
+  const { nome, descricao, preco, quantidade, fornecedorId } = req.body;
+  const imagem = req.file ? `/uploads/${req.file.filename}` : null;
+
+  db.run(
+    `INSERT INTO Produtos (nome, descricao, preco, quantidade, imagem, fornecedorId)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [nome, descricao, preco, quantidade, imagem, fornecedorId],
+    function (err) {
+      if (err) {
+        console.error('Erro ao inserir produto:', err);
+        res.status(500).json({ error: err.message });
+      } else {
+        console.log('Produto criado com sucesso.');
+        res.status(201).json({ success: true, id: this.lastID });
+      }
+    }
+  );
+});
+
+app.put('/produtos/:id', upload.single('imagem'), (req, res) => {
+  const { id } = req.params;
+  const { nome, descricao, preco, quantidade, fornecedorId } = req.body;
+  let imagem = req.file ? `/uploads/${req.file.filename}` : null;
+
+  // Se nenhuma nova imagem for enviada, manter a imagem existente
+  if (!imagem) {
+    db.get('SELECT imagem FROM Produtos WHERE id = ?', [id], (err, row) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+      } else {
+        imagem = row.imagem;
+        atualizarProduto();
+      }
     });
   } else {
-    // Método não permitido ou rota não encontrada.
-    res.writeHead(405, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Método não permitido ou rota não encontrada." }));
+    atualizarProduto();
+  }
+
+  function atualizarProduto() {
+    db.run(
+      `UPDATE Produtos
+       SET nome = ?, descricao = ?, preco = ?, quantidade = ?, imagem = ?, fornecedorId = ?
+       WHERE id = ?`,
+      [nome, descricao, preco, quantidade, imagem, fornecedorId, id],
+      function (err) {
+        if (err) {
+          console.error('Erro ao atualizar produto:', err);
+          res.status(500).json({ error: err.message });
+        } else {
+          res.status(200).json({ success: true });
+        }
+      }
+    );
   }
 });
 
-const port = 3000;
-server.listen(port);
-console.log(`Servidor escutando no porto ${port}`);
+app.delete('/produtos/:id', (req, res) => {
+  const { id } = req.params;
+  db.run('DELETE FROM Produtos WHERE id = ?', [id], function (err) {
+    if (err) {
+      console.error('Erro ao excluir produto:', err);
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(200).json({ success: true });
+    }
+  });
+});
+
+// Rotas para Fornecedores
+app.get('/fornecedores', (req, res) => {
+  searchFornecedores((err, result) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(200).json(result);
+    }
+  });
+});
+
+app.get('/fornecedores/:id', (req, res) => {
+  const { id } = req.params;
+  db.get('SELECT * FROM Fornecedores WHERE FornecedorID = ?', [id], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else if (!row) {
+      res.status(404).json({ error: 'Fornecedor não encontrado.' });
+    } else {
+      res.status(200).json(row);
+    }
+  });
+});
+
+app.post('/fornecedores', (req, res) => {
+  const { Nome, CNPJ, Contato, Endereco } = req.body;
+  db.run(
+    `INSERT INTO Fornecedores (Nome, CNPJ, Contato, Endereco) VALUES (?, ?, ?, ?)`,
+    [Nome, CNPJ, Contato, Endereco],
+    function (err) {
+      if (err) {
+        console.error('Erro ao inserir fornecedor:', err);
+        res.status(500).json({ error: err.message });
+      } else {
+        console.log('Fornecedor criado com sucesso.');
+        res.status(201).json({ success: true, id: this.lastID });
+      }
+    }
+  );
+});
+
+app.put('/fornecedores/:id', (req, res) => {
+  const { id } = req.params;
+  const { Nome, CNPJ, Contato, Endereco } = req.body;
+  db.run(
+    `UPDATE Fornecedores
+     SET Nome = ?, CNPJ = ?, Contato = ?, Endereco = ?
+     WHERE FornecedorID = ?`,
+    [Nome, CNPJ, Contato, Endereco, id],
+    function (err) {
+      if (err) {
+        console.error('Erro ao atualizar fornecedor:', err);
+        res.status(500).json({ error: err.message });
+      } else {
+        res.status(200).json({ success: true });
+      }
+    }
+  );
+});
+
+app.delete('/fornecedores/:id', (req, res) => {
+  const { id } = req.params;
+  db.run('DELETE FROM Fornecedores WHERE FornecedorID = ?', [id], function (err) {
+    if (err) {
+      console.error('Erro ao excluir fornecedor:', err);
+      res.status(500).json({ error: err.message });
+    } else {
+      res.status(200).json({ success: true });
+    }
+  });
+});
+
+// Inicia o servidor
+app.listen(port, () => {
+  console.log(`Servidor escutando no porto ${port}`);
+});

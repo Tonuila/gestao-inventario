@@ -2,11 +2,11 @@ import React from 'react';
 
 const Home: React.FC = () => {
     return (
-      <div>
+      <div className="p-6 ">
         <h1>Bem vindo</h1>
-        <p>This is the home page. Use the navigation to access Products or Suppliers management.</p>
+        <p>sem ideia irmão.</p>
       </div>
     );
-  };
+  };  
   
   export default Home;

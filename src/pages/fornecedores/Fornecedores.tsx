@@ -5,9 +5,8 @@ import { Button } from '@/components/ui/button';
 
 const Fornecedores: React.FC = () => {
   return (
-    <div>
-      <h1>Fornecedores</h1>
-      <p>Gerencie seus fornecedores aqui.</p>
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">Gerenciamento de Fornecedores</h1>
       <div className="my-4">
         <Link to="/fornecedor/new">
           <Button variant="default">Adicionar Novo Fornecedor</Button>

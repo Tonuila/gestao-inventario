@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { useState } from 'react';
 import Home from './pages/home/Home';
 import Produtos from './pages/produtos/Produtos';
 import Fornecedores from './pages/fornecedores/Fornecedores';
@@ -11,33 +12,46 @@ import FormFornecedor from './components/FormFornecedor';
 import './App.css';
 
 function App() {
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <Router>
       <div className="App">
-        <nav>
-          <ul>
-            <li>
-              <Link to="/">Home</Link>
-            </li>
-            <li>
-              <Link to="/produtos">Produtos</Link>
-            </li>
-            <li>
-              <Link to="/fornecedores">Fornecedores</Link>
-            </li>
-            <li>
-              <Link to="/pedidos">Pedidos</Link>
-            </li>
-            <li>
-              <Link to="/itenspedidos">Itens Pedidos</Link>
-            </li>
-            <li>
-              <Link to="/clientes">Clientes</Link>
-            </li>
-            <li>
-              <Link to="/transacoes">Transações Financeiras</Link>
-            </li>
-          </ul>
+      <nav>
+          <div className="nav-container">
+            <div className="logo">
+              <Link to="/">PreTeX</Link>
+            </div>
+            <div className={`nav-links ${menuOpen ? 'open' : ''}`}>
+              <ul>
+                <li>
+                  <Link to="/" onClick={() => setMenuOpen(false)}>Home</Link>
+                </li>
+                <li>
+                  <Link to="/produtos" onClick={() => setMenuOpen(false)}>Produtos</Link>
+                </li>
+                <li>
+                  <Link to="/fornecedores" onClick={() => setMenuOpen(false)}>Fornecedores</Link>
+                </li>
+                <li>
+                  <Link to="/pedidos" onClick={() => setMenuOpen(false)}>Pedidos</Link>
+                </li>
+                <li>
+                  <Link to="/itenspedidos" onClick={() => setMenuOpen(false)}>Itens Pedidos</Link>
+                </li>
+                <li>
+                  <Link to="/clientes" onClick={() => setMenuOpen(false)}>Clientes</Link>
+                </li>
+                <li>
+                  <Link to="/transacoes" onClick={() => setMenuOpen(false)}>Transações Financeiras</Link>
+                </li>
+              </ul>
+            </div>
+            <div className="menu-icon" onClick={() => setMenuOpen(!menuOpen)}>
+              <div className="bar1"></div>
+              <div className="bar2"></div>
+              <div className="bar3"></div>
+            </div>
+          </div>
         </nav>
 
         <Routes>
