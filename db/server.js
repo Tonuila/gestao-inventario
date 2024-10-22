@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
 
 // Configuração do servidor Express
 const app = express();
@@ -26,6 +27,24 @@ const db = new sqlite3.Database('empresa.db', (err) => {
     console.log('Conexão estabelecida com sucesso.');
   }
 });
+
+// Criação da tabela Usuários
+db.run(
+  `CREATE TABLE IF NOT EXISTS Usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    senha TEXT NOT NULL,
+    role TEXT CHECK(role IN ('admin', 'user')) DEFAULT 'user'
+  )`,
+  (err) => {
+    if (err) {
+      console.error('Erro ao criar a tabela Usuários:', err.message);
+    } else {
+      console.log('Tabela Usuários criada com sucesso.');
+    }
+  }
+);
 
 // Criação da tabela Fornecedores
 db.run(
@@ -83,20 +102,54 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Função para buscar todos os fornecedores
-const searchFornecedores = (callback) => {
-  db.all('SELECT * FROM Fornecedores', (err, rows) => {
-    if (err) {
-      console.error('Erro ao buscar fornecedores:', err);
-      callback(err, null);
-    } else {
-      callback(null, rows);
-    }
-  });
-};
+// Registro de usuário
+app.post('/register', (req, res) => {
+  const { nome, email, senha, role } = req.body;
+  if (!nome || !email || !senha) {
+    return res.status(400).send('Todos os campos são obrigatórios.');
+  }
 
-// Função para buscar produtos com filtros
-const searchProdutos = (filters, callback) => {
+  bcrypt.hash(senha, 10, (err, hashedPassword) => {
+    if (err) {
+      return res.status(500).send('Erro ao gerar hash da senha.');
+    }
+    db.run(
+      `INSERT INTO Usuarios (nome, email, senha, role) VALUES (?, ?, ?, ?)`,
+      [nome, email, hashedPassword, role || 'user'],
+      function (err) {
+        if (err) {
+          return res.status(500).send('Erro ao registrar o usuário.');
+        }
+        res.status(201).send('Usuário registrado com sucesso!');
+      }
+    );
+  });
+});
+
+// Login de usuário
+app.post('/login', (req, res) => {
+  const { email, senha } = req.body;
+  if (!email || !senha) {
+    return res.status(400).send('Email e senha são obrigatórios.');
+  }
+
+  db.get(`SELECT * FROM Usuarios WHERE email = ?`, [email], (err, user) => {
+    if (err || !user) {
+      return res.status(401).send('Usuário não encontrado.');
+    }
+
+    bcrypt.compare(senha, user.senha, (err, isMatch) => {
+      if (err || !isMatch) {
+        return res.status(401).send('Credenciais inválidas.');
+      }
+      res.json({ user: { id: user.id, name: user.nome, role: user.role } });
+    });
+  });
+});
+
+// Rotas para Produtos (sem token de autenticação)
+app.get('/produtos', (req, res) => {
+  const { nome, fornecedorId, ordemPreco } = req.query;
   let query = `
     SELECT Produtos.*, Fornecedores.Nome AS fornecedorNome 
     FROM Produtos
@@ -105,60 +158,23 @@ const searchProdutos = (filters, callback) => {
   `;
   const queryParams = [];
 
-  // Filtrar por nome
-  if (filters.nome) {
+  if (nome) {
     query += ' AND Produtos.nome LIKE ?';
-    queryParams.push(`%${filters.nome}%`);
+    queryParams.push(`%${nome}%`);
   }
-
-  // Filtrar por fornecedor
-  if (filters.fornecedorId) {
+  if (fornecedorId) {
     query += ' AND Produtos.fornecedorId = ?';
-    queryParams.push(filters.fornecedorId);
+    queryParams.push(fornecedorId);
   }
-
-  // Ordenar por preço
-  if (filters.ordemPreco) {
-    query += ` ORDER BY Produtos.preco ${filters.ordemPreco === 'asc' ? 'ASC' : 'DESC'}`;
+  if (ordemPreco) {
+    query += ` ORDER BY Produtos.preco ${ordemPreco === 'asc' ? 'ASC' : 'DESC'}`;
   }
 
   db.all(query, queryParams, (err, rows) => {
     if (err) {
-      callback(err, null);
-    } else {
-      callback(null, rows);
-    }
-  });
-};
-
-// Rotas para Produtos
-app.get('/produtos', (req, res) => {
-  const { nome, fornecedorId, ordemPreco } = req.query;
-
-  const filters = {
-    nome,
-    fornecedorId,
-    ordemPreco,
-  };
-
-  searchProdutos(filters, (err, result) => {
-    if (err) {
       res.status(500).json({ error: err.message });
     } else {
-      res.status(200).json(result);
-    }
-  });
-});
-
-app.get('/produtos/:id', (req, res) => {
-  const { id } = req.params;
-  db.get('SELECT * FROM Produtos WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-    } else if (!row) {
-      res.status(404).json({ error: 'Produto não encontrado.' });
-    } else {
-      res.status(200).json(row);
+      res.status(200).json(rows);
     }
   });
 });
@@ -173,10 +189,8 @@ app.post('/produtos', upload.single('imagem'), (req, res) => {
     [nome, descricao, preco, quantidade, imagem, fornecedorId],
     function (err) {
       if (err) {
-        console.error('Erro ao inserir produto:', err);
         res.status(500).json({ error: err.message });
       } else {
-        console.log('Produto criado com sucesso.');
         res.status(201).json({ success: true, id: this.lastID });
       }
     }
@@ -188,7 +202,6 @@ app.put('/produtos/:id', upload.single('imagem'), (req, res) => {
   const { nome, descricao, preco, quantidade, fornecedorId } = req.body;
   let imagem = req.file ? `/uploads/${req.file.filename}` : null;
 
-  // Se nenhuma nova imagem for enviada, manter a imagem existente
   if (!imagem) {
     db.get('SELECT imagem FROM Produtos WHERE id = ?', [id], (err, row) => {
       if (err) {
@@ -232,13 +245,13 @@ app.delete('/produtos/:id', (req, res) => {
   });
 });
 
-// Rotas para Fornecedores
+// Rotas para Fornecedores (sem token de autenticação)
 app.get('/fornecedores', (req, res) => {
-  searchFornecedores((err, result) => {
+  db.all('SELECT * FROM Fornecedores', (err, rows) => {
     if (err) {
       res.status(500).json({ error: err.message });
     } else {
-      res.status(200).json(result);
+      res.status(200).json(rows);
     }
   });
 });
@@ -303,6 +316,21 @@ app.delete('/fornecedores/:id', (req, res) => {
     }
   });
 });
+
+// Rota para listar todos os usuários cadastrados com suas senhas em hash
+app.get('/usuarios', (req, res) => {
+  const query = 'SELECT id, nome, email, senha, role FROM Usuarios';
+  
+  db.all(query, [], (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    res.status(200).json(rows);
+  });
+});
+
 
 // Inicia o servidor
 app.listen(port, () => {

@@ -1,4 +1,4 @@
-import kermitImage from '../../assets/kermit.jpg';
+import kermitImage from '../assets/kermit.jpg'
 
 const Sobre = () => {
   return (

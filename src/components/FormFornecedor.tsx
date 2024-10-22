@@ -20,15 +20,24 @@ function FormFornecedor() {
     Contato: "",
     Endereco: "",
   });
-  
+
   const navigate = useNavigate();
   const { FornecedorID } = useParams<{ FornecedorID: string }>(); // ID opcional para edição
 
   useEffect(() => {
     if (FornecedorID) {
       // Buscar dados do fornecedor para edição
-      fetch(`http://localhost:3000/fornecedores/${FornecedorID}`)
-        .then((res) => res.json())
+      fetch(`http://localhost:3000/fornecedores/${FornecedorID}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('token')}`, // Incluindo o token JWT
+        },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Erro ao buscar fornecedor.");
+          return res.json();
+        })
         .then((foundFornecedor: Fornecedor) => {
           setFornecedor(foundFornecedor);
         })
@@ -47,7 +56,10 @@ function FormFornecedor() {
     fetch(url, {
       method: method,
       body: JSON.stringify(fornecedor),
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${localStorage.getItem('token')}`, // Incluindo o token JWT
+      },
     })
       .then((res) => {
         if (!res.ok) throw new Error(`Erro ao salvar: ${res.statusText}`);
@@ -116,4 +128,4 @@ function FormFornecedor() {
   );
 }
 
-    export default FormFornecedor;
+export default FormFornecedor;

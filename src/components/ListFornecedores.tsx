@@ -10,7 +10,9 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useAuth } from '@/context/AuthContext'; // Importando o contexto para verificar o papel do usuário
 
+// Interface para representar um fornecedor
 interface Fornecedor {
   FornecedorID: number;
   Nome: string;
@@ -22,21 +24,34 @@ interface Fornecedor {
 function ListFornecedores() {
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [filtro, setFiltro] = useState("");
+  const { user } = useAuth(); // Obtenha o papel do usuário
 
   useEffect(() => {
-    fetch("http://localhost:3000/fornecedores")
-      .then((res) => res.json())
+    // Buscar a lista de fornecedores
+    fetch("http://localhost:3000/fornecedores", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Erro ao carregar fornecedores");
+        return res.json();
+      })
       .then((data: Fornecedor[]) => {
         setFornecedores(data);
       })
-      .catch((err) => console.error(err));
+      .catch((err) => console.error("Erro ao carregar fornecedores:", err));
   }, []);
 
   const handleDelete = (id: number) => {
     if (confirm("Tem certeza que deseja excluir este fornecedor?")) {
-      fetch(`http://localhost:3000/fornecedor/${id}`, {
+      // Excluir fornecedor
+      fetch(`http://localhost:3000/fornecedores/${id}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
       })
         .then((res) => {
           if (res.ok) {
@@ -45,10 +60,11 @@ function ListFornecedores() {
             alert("Erro ao tentar excluir o fornecedor. Verifique se ele está associado a produtos.");
           }
         })
-        .catch((err) => console.error(err));
+        .catch((err) => console.error("Erro ao excluir fornecedor:", err));
     }
   };
 
+  // Filtra os fornecedores pelo nome ou contato
   const fornecedoresFiltrados = fornecedores.filter(
     (fornecedor) =>
       fornecedor.Nome.toLowerCase().includes(filtro.toLowerCase()) ||
@@ -84,18 +100,23 @@ function ListFornecedores() {
               <TableCell>{fornecedor.Endereco}</TableCell>
               <TableCell>
                 <div className="flex space-x-2">
-                  <Link to={`/fornecedor/edit/${fornecedor.FornecedorID}`}>
-                    <Button variant="default" size="sm">
-                      Editar
-                    </Button>
-                  </Link>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(fornecedor.FornecedorID)}
-                  >
-                    Excluir
-                  </Button>
+                  {user && user.role === 'admin' && (
+                    <>
+                      <Link to={`/fornecedor/edit/${fornecedor.FornecedorID}`}>
+                        <Button variant="default" size="sm">
+                          Editar
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(fornecedor.FornecedorID)}
+                      >
+                        Excluir
+                      </Button>
+                    </>
+                  )}
+                  {/* Usuário comum (user) não verá as opções de edição e exclusão */}
                 </div>
               </TableCell>
             </TableRow>
