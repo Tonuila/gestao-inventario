@@ -98,6 +98,22 @@ nav {
   .menu-icon {
     display: block;
   }
+    /* Ajusta o estilo do link de login/logout no menu sanduíche */
+    .auth-link {
+      margin-top: 15px;
+    }
+  
+    .auth-link button {
+      background-color: #ffffff;
+      color: #000000;
+      padding: 10px 20px;
+      border: none;
+      cursor: pointer;
+    }
+  
+    .auth-link button:hover {
+      background-color: #f1f1f1;
+    }
 }
 
 nav::after {

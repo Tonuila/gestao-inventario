@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import api from "@/utils/api";  // Use a instância Axios configurada
+import { useAuth } from '@/context/AuthContext'; // Importando o contexto de autenticação
 
 interface Produto {
   id: number;
@@ -29,11 +31,6 @@ interface Produto {
   fornecedorNome?: string;
 }
 
-interface Fornecedor {
-  FornecedorID: number;
-  Nome: string;
-}
-
 function ListOfResult() {
   const [result, setResult] = useState<Produto[]>([]);
   const [fornecedores, setFornecedores] = useState<Record<number, string>>({});
@@ -44,9 +41,11 @@ function ListOfResult() {
   const [filtroFornecedor, setFiltroFornecedor] = useState<string>("");
   const [ordemPreco, setOrdemPreco] = useState<string>("");
 
+  const { user } = useAuth(); // Obtendo o papel do usuário
+
   // Fetch produtos com filtro
   const fetchProdutos = () => {
-    let query = `http://localhost:3000/produtos?`;
+    let query = `/produtos?`;  // Base URL configurada no api.ts
 
     if (filtroNome) {
       query += `nome=${encodeURIComponent(filtroNome)}&`;
@@ -58,9 +57,8 @@ function ListOfResult() {
       query += `ordemPreco=${encodeURIComponent(ordemPreco)}&`;
     }
 
-    fetch(query)
-      .then((res) => res.json())
-      .then((data: Produto[]) => setResult(data))
+    api.get(query)  // Usando api (Axios) para fazer a requisição
+      .then((res) => setResult(res.data))
       .catch((err) => setError(`Erro ao carregar produtos: ${err.message}`));
   };
 
@@ -70,10 +68,9 @@ function ListOfResult() {
 
   useEffect(() => {
     // Fetch fornecedores
-    fetch("http://localhost:3000/fornecedores")
-      .then((res) => res.json())
-      .then((data: Fornecedor[]) => {
-        const fornecedorMap = data.reduce((map, fornecedor) => {
+    api.get("/fornecedores")  // Usando api (Axios) para buscar fornecedores
+      .then((res) => {
+        const fornecedorMap = res.data.reduce((map: { [x: string]: any; }, fornecedor: { FornecedorID: string | number; Nome: any; }) => {
           map[fornecedor.FornecedorID] = fornecedor.Nome;
           return map;
         }, {} as Record<number, string>);
@@ -85,10 +82,7 @@ function ListOfResult() {
 
   const handleDelete = (id: number) => {
     if (confirm("Tem certeza que deseja excluir este produto?")) {
-      fetch(`http://localhost:3000/produtos/${id}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      })
+      api.delete(`/produtos/${id}`)  // Usando api (Axios) para deletar produto
         .then(() => {
           setResult(result.filter((item) => item.id !== id));
         })
@@ -149,7 +143,7 @@ function ListOfResult() {
                 <TableCell>
                   {item.imagem && (
                     <img
-                      src={`http://localhost:3000${item.imagem}`}
+                      src={`http://localhost:3000${item.imagem}`}  // URL da imagem
                       alt={item.nome}
                       className="w-24 h-24 object-cover rounded-md"
                     />
@@ -161,20 +155,23 @@ function ListOfResult() {
                 <TableCell>{item.quantidade}</TableCell>
                 <TableCell>{fornecedores[item.fornecedorId]}</TableCell>
                 <TableCell>
-                  <div className="flex space-x-2">
-                    <Link to={`/modify/${item.id}`}>
-                      <Button variant="default" size="sm">
-                        Modificar
+                  {/* Verifica se o usuário é admin antes de renderizar as ações */}
+                  {user && user.role === 'admin' && (
+                    <div className="flex space-x-2">
+                      <Link to={`/modify/${item.id}`}>
+                        <Button variant="default" size="sm">
+                          Modificar
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(item.id)}
+                      >
+                        Excluir
                       </Button>
-                    </Link>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(item.id)}
-                    >
-                      Excluir
-                    </Button>
-                  </div>
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
